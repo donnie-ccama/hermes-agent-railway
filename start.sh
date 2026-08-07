@@ -1,6 +1,52 @@
 #!/bin/bash
 set -e
 
+# Railway containers are replaced on every deploy. Keep SSH host keys,
+# authorized keys, and Tailscale's node state on the existing /data volume.
+mkdir -p /data/ssh /data/tailscale /run/sshd /run/tailscale
+if [ ! -f /data/ssh/ssh_host_ed25519_key ]; then
+  ssh-keygen -q -t ed25519 -N '' -f /data/ssh/ssh_host_ed25519_key
+fi
+chmod 600 /data/ssh/ssh_host_ed25519_key
+
+if [ -n "${SSH_AUTHORIZED_KEY:-}" ]; then
+  printf '%s\n' "$SSH_AUTHORIZED_KEY" > /data/ssh/authorized_keys
+  chown hermes:hermes /data/ssh/authorized_keys
+  chmod 600 /data/ssh/authorized_keys
+fi
+
+# SSH is reachable only through Tailscale Serve on TCP 2222; Railway does not
+# expose this port publicly. Password and root logins stay disabled.
+/usr/sbin/sshd -e -p 2222 \
+  -h /data/ssh/ssh_host_ed25519_key \
+  -o AuthorizedKeysFile=/data/ssh/authorized_keys \
+  -o PasswordAuthentication=no \
+  -o KbdInteractiveAuthentication=no \
+  -o PermitRootLogin=no \
+  -o AllowUsers=hermes
+
+if [ -n "${TAILSCALE_AUTH_KEY:-}" ]; then
+  tailscaled \
+    --state=/data/tailscale/tailscaled.state \
+    --socket=/run/tailscale/tailscaled.sock \
+    --tun=userspace-networking &
+  tailscaled_pid=$!
+  trap 'kill "$tailscaled_pid" 2>/dev/null || true' EXIT
+
+  for _ in $(seq 1 30); do
+    [ -S /run/tailscale/tailscaled.sock ] && break
+    sleep 1
+  done
+  tailscale --socket=/run/tailscale/tailscaled.sock up \
+    --auth-key="$TAILSCALE_AUTH_KEY" \
+    --hostname="${TAILSCALE_HOSTNAME:-railway-hermes}" \
+    --accept-dns=false
+  tailscale --socket=/run/tailscale/tailscaled.sock serve --bg \
+    --tcp=2222 tcp://127.0.0.1:2222
+else
+  echo "TAILSCALE_AUTH_KEY is unset; SSH is running but not exposed." >&2
+fi
+
 # Mirror dashboard-ref-only's startup: create every directory hermes expects
 # and seed a default config.yaml if the volume is empty. Without these,
 # `hermes dashboard` endpoints that hit logs/, sessions/, cron/, etc. can fail
@@ -71,4 +117,7 @@ if [ -n "${RAILWAY_PUBLIC_DOMAIN:-}" ]; then
   export HERMES_DASHBOARD_PUBLIC_URL
 fi
 
-exec python /app/server.py
+# Hermes and Herdr need to see the same persistent home directory as the SSH
+# user. The web process no longer needs root once its launch setup is complete.
+chown -R hermes:hermes /data/.hermes
+exec runuser -u hermes -- env HOME=/data HERMES_HOME=/data/.hermes python /app/server.py

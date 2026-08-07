@@ -29,9 +29,12 @@ ENV HERMES_REF=${HERMES_REF}
 # Node.js is required only at build time to compile the Hermes React dashboard.
 # We strip the source + apt lists afterwards to keep the image lean.
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends curl ca-certificates git tini && \
+    apt-get install -y --no-install-recommends curl ca-certificates git tini openssh-server && \
     curl -fsSL https://deb.nodesource.com/setup_22.x | bash - && \
     apt-get install -y --no-install-recommends nodejs && \
+    curl -fsSL https://tailscale.com/install.sh | sh && \
+    useradd --home-dir /data --no-create-home --shell /bin/bash hermes && \
+    mkdir -p /run/sshd /run/tailscale && \
     rm -rf /var/lib/apt/lists/*
 
 # Install hermes-agent (provides the `hermes` CLI) and pre-build its React
