@@ -9,6 +9,7 @@ FROM ghcr.io/astral-sh/uv:python3.12-bookworm-slim
 # `v2026.5.29.2`) and update the default below. Use `main` only if you accept
 # that every rebuild can pull arbitrary new upstream commits.
 ARG HERMES_REF=v2026.7.20
+ARG HERDR_VERSION=0.7.4
 
 # Persist the build arg into the runtime env so the admin UI can display which
 # Hermes release this image actually pins. Reading it (rather than hardcoding a
@@ -16,6 +17,7 @@ ARG HERMES_REF=v2026.7.20
 # HERMES_REF as a Railway service variable to pin an older release — a Railway
 # runtime variable simply shadows this ENV, so the UI still shows the truth.
 ENV HERMES_REF=${HERMES_REF}
+ENV HERDR_VERSION=${HERDR_VERSION}
 
 # tini = tiny init that we run as PID 1. Without it, hermes's grandchild
 # processes (MCP stdio servers, git, bun, browser daemons spawned by tools)
@@ -33,6 +35,8 @@ RUN apt-get update && \
     curl -fsSL https://deb.nodesource.com/setup_22.x | bash - && \
     apt-get install -y --no-install-recommends nodejs && \
     curl -fsSL https://tailscale.com/install.sh | sh && \
+    curl -fsSL "https://github.com/herdrdev/herdr/releases/download/v${HERDR_VERSION}/herdr-linux-x86_64" -o /usr/local/bin/herdr && \
+    chmod 755 /usr/local/bin/herdr && \
     useradd --home-dir /data --no-create-home --shell /bin/bash hermes && \
     mkdir -p /run/sshd /run/tailscale && \
     rm -rf /var/lib/apt/lists/*

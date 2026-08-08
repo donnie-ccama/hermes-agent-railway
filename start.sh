@@ -128,10 +128,8 @@ fi
 # Hermes and Herdr need to see the same persistent home directory as the SSH
 # user. The web process no longer needs root once its launch setup is complete.
 chown -R hermes:hermes /data/.hermes
-if [ -f /data/.local/bin/herdr ]; then
-  chown hermes:hermes /data/.local/bin/herdr
-  chmod 755 /data/.local/bin/herdr
+if command -v herdr >/dev/null 2>&1; then
   runuser -u hermes -- env HOME=/data HERMES_HOME=/data/.hermes \
-    /data/.local/bin/herdr integration install hermes
+    herdr integration install hermes
 fi
 exec runuser -u hermes -- env HOME=/data HERMES_HOME=/data/.hermes python /app/server.py
