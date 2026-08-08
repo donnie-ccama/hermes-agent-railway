@@ -13,6 +13,8 @@ if [ ! -f /data/ssh/ssh_host_ed25519_key ]; then
 fi
 chown root:root /data/ssh /data/tailscale
 chmod 755 /data/ssh /data/tailscale
+mkdir -p /data/.local/bin
+chown hermes:hermes /data/.local /data/.local/bin
 chmod 600 /data/ssh/ssh_host_ed25519_key
 
 if [ -n "${SSH_AUTHORIZED_KEY:-}" ]; then
@@ -126,4 +128,10 @@ fi
 # Hermes and Herdr need to see the same persistent home directory as the SSH
 # user. The web process no longer needs root once its launch setup is complete.
 chown -R hermes:hermes /data/.hermes
+if [ -f /data/.local/bin/herdr ]; then
+  chown hermes:hermes /data/.local/bin/herdr
+  chmod 755 /data/.local/bin/herdr
+  runuser -u hermes -- env HOME=/data HERMES_HOME=/data/.hermes \
+    /data/.local/bin/herdr integration install hermes
+fi
 exec runuser -u hermes -- env HOME=/data HERMES_HOME=/data/.hermes python /app/server.py
