@@ -138,6 +138,9 @@ fi
 # application through its local HTTP proxy so custom model endpoints on the
 # tailnet (such as Spark's vLLM server) are reachable.
 if [ -n "${TAILSCALE_AUTH_KEY:-}" ]; then
+  if [ -n "${SPARK_VLLM_UPSTREAM:-}" ]; then
+    SPARK_VLLM_UPSTREAM="$SPARK_VLLM_UPSTREAM" python /app/spark_proxy.py &
+  fi
   exec runuser -u hermes -- env HOME=/data HERMES_HOME=/data/.hermes \
     HTTP_PROXY=http://127.0.0.1:1055 HTTPS_PROXY=http://127.0.0.1:1055 \
     http_proxy=http://127.0.0.1:1055 https_proxy=http://127.0.0.1:1055 \
