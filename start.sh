@@ -4,9 +4,15 @@ set -e
 # Railway containers are replaced on every deploy. Keep SSH host keys,
 # authorized keys, and Tailscale's node state on the existing /data volume.
 mkdir -p /data/ssh /data/tailscale /run/sshd /run/tailscale
+# /data is the hermes account's home directory. It must be writable so remote
+# tools such as Herdr can install under ~/.local/bin; sensitive child dirs are
+# still explicitly owned and permissioned below.
+chown hermes:hermes /data
 if [ ! -f /data/ssh/ssh_host_ed25519_key ]; then
   ssh-keygen -q -t ed25519 -N '' -f /data/ssh/ssh_host_ed25519_key
 fi
+chown root:root /data/ssh /data/tailscale
+chmod 755 /data/ssh /data/tailscale
 chmod 600 /data/ssh/ssh_host_ed25519_key
 
 if [ -n "${SSH_AUTHORIZED_KEY:-}" ]; then
