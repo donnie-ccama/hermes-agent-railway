@@ -37,7 +37,9 @@ if [ -n "${TAILSCALE_AUTH_KEY:-}" ]; then
   tailscaled \
     --state=/data/tailscale/tailscaled.state \
     --socket=/run/tailscale/tailscaled.sock \
-    --tun=userspace-networking &
+    --tun=userspace-networking \
+    --socks5-server=127.0.0.1:1055 \
+    --outbound-http-proxy-listen=127.0.0.1:1055 &
   tailscaled_pid=$!
   trap 'kill "$tailscaled_pid" 2>/dev/null || true' EXIT
 
@@ -131,5 +133,15 @@ chown -R hermes:hermes /data/.hermes
 if command -v herdr >/dev/null 2>&1; then
   runuser -u hermes -- env HOME=/data HERMES_HOME=/data/.hermes \
     herdr integration install hermes
+fi
+# Userspace Tailscale does not install a kernel network interface. Route the
+# application through its local HTTP proxy so custom model endpoints on the
+# tailnet (such as Spark's vLLM server) are reachable.
+if [ -n "${TAILSCALE_AUTH_KEY:-}" ]; then
+  exec runuser -u hermes -- env HOME=/data HERMES_HOME=/data/.hermes \
+    HTTP_PROXY=http://127.0.0.1:1055 HTTPS_PROXY=http://127.0.0.1:1055 \
+    http_proxy=http://127.0.0.1:1055 https_proxy=http://127.0.0.1:1055 \
+    NO_PROXY=127.0.0.1,localhost no_proxy=127.0.0.1,localhost \
+    python /app/server.py
 fi
 exec runuser -u hermes -- env HOME=/data HERMES_HOME=/data/.hermes python /app/server.py
