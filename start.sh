@@ -53,6 +53,10 @@ if [ -n "${TAILSCALE_AUTH_KEY:-}" ]; then
     --accept-dns=false
   tailscale --socket=/run/tailscale/tailscaled.sock serve --bg \
     --tcp=2222 tcp://127.0.0.1:2222
+  # Tailnet-only transport for local TUI clients. The dashboard's own session
+  # token still protects /api/ws; this removes SSH from the TUI data path.
+  tailscale --socket=/run/tailscale/tailscaled.sock serve --bg \
+    --tcp=9119 tcp://127.0.0.1:9119
 else
   echo "TAILSCALE_AUTH_KEY is unset; SSH is running but not exposed." >&2
 fi
